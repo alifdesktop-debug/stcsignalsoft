@@ -46,7 +46,7 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
         }
         return nextStep
       })
-    }, 1000)
+    }, 2000)
 
     return () => clearInterval(interval)
   }, [type, onComplete])
