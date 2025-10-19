@@ -27,6 +27,7 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
   const [isComplete, setIsComplete] = useState(false)
   const [isWaiting, setIsWaiting] = useState(type === "future")
   const [waitingSeconds, setWaitingSeconds] = useState(20)
+  const [waitProgress, setWaitProgress] = useState(0)
 
   useEffect(() => {
     setLines([])
@@ -34,6 +35,7 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
     setIsComplete(false)
     setIsWaiting(type === "future")
     setWaitingSeconds(20)
+    setWaitProgress(0)
 
     if (type === "future") {
       const waitInterval = setInterval(() => {
@@ -45,6 +47,7 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
           }
           return prev - 1
         })
+        setWaitProgress((prev) => Math.min(prev + 5, 95))
       }, 1000)
 
       return () => clearInterval(waitInterval)
@@ -91,7 +94,7 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
     }
   }, [isWaiting, type, currentStep, onComplete])
 
-  const progressPercentage = isWaiting ? 0 : Math.round((currentStep / analysisSteps.length) * 100)
+  const progressPercentage = isWaiting ? waitProgress : Math.round((currentStep / analysisSteps.length) * 100)
 
   return (
     <Card className="bg-slate-950 border-blue-900/50 backdrop-blur overflow-hidden">
