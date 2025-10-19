@@ -25,11 +25,30 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
   const [currentStep, setCurrentStep] = useState(0)
   const [lines, setLines] = useState<string[]>([])
   const [isComplete, setIsComplete] = useState(false)
+  const [isWaiting, setIsWaiting] = useState(type === "future")
+  const [waitingSeconds, setWaitingSeconds] = useState(20)
 
   useEffect(() => {
     setLines([])
     setCurrentStep(0)
     setIsComplete(false)
+    setIsWaiting(type === "future")
+    setWaitingSeconds(20)
+
+    if (type === "future") {
+      const waitInterval = setInterval(() => {
+        setWaitingSeconds((prev) => {
+          if (prev <= 1) {
+            clearInterval(waitInterval)
+            setIsWaiting(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+
+      return () => clearInterval(waitInterval)
+    }
 
     const interval = setInterval(() => {
       setCurrentStep((prev) => {
@@ -39,19 +58,40 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
         }
         if (nextStep === analysisSteps.length) {
           setIsComplete(true)
-          // Call onComplete callback only at 100%
           if (onComplete) {
             onComplete()
           }
         }
         return nextStep
       })
-    }, 2000)
+    }, 1000)
 
     return () => clearInterval(interval)
   }, [type, onComplete])
 
-  const progressPercentage = Math.round((currentStep / analysisSteps.length) * 100)
+  useEffect(() => {
+    if (!isWaiting && type === "future" && currentStep === 0) {
+      const interval = setInterval(() => {
+        setCurrentStep((prev) => {
+          const nextStep = prev + 1
+          if (nextStep <= analysisSteps.length) {
+            setLines((prevLines) => [...prevLines, analysisSteps[prev]])
+          }
+          if (nextStep === analysisSteps.length) {
+            setIsComplete(true)
+            if (onComplete) {
+              onComplete()
+            }
+          }
+          return nextStep
+        })
+      }, 1000)
+
+      return () => clearInterval(interval)
+    }
+  }, [isWaiting, type, currentStep, onComplete])
+
+  const progressPercentage = isWaiting ? 0 : Math.round((currentStep / analysisSteps.length) * 100)
 
   return (
     <Card className="bg-slate-950 border-blue-900/50 backdrop-blur overflow-hidden">
@@ -68,15 +108,30 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
         </div>
 
         <div className="font-mono text-sm space-y-2 min-h-[300px]">
-          {lines.map((line, index) => (
-            <div key={index} className="flex items-start gap-2">
+          {isWaiting && (
+            <div className="flex items-start gap-2">
               <span className="text-emerald-500">{">"}</span>
-              <span className="text-blue-300">{line}</span>
-              {index === lines.length - 1 && (
-                <span className="inline-block w-2 h-4 bg-emerald-500 animate-pulse ml-1" />
-              )}
+              <span className="text-blue-300">Preparing future signal analysis...</span>
             </div>
-          ))}
+          )}
+          {isWaiting && (
+            <div className="flex items-start gap-2">
+              <span className="text-emerald-500">{">"}</span>
+              <span className="text-yellow-400">Waiting: {waitingSeconds} seconds remaining...</span>
+              <span className="inline-block w-2 h-4 bg-yellow-500 animate-pulse ml-1" />
+            </div>
+          )}
+
+          {!isWaiting &&
+            lines.map((line, index) => (
+              <div key={index} className="flex items-start gap-2">
+                <span className="text-emerald-500">{">"}</span>
+                <span className="text-blue-300">{line}</span>
+                {index === lines.length - 1 && (
+                  <span className="inline-block w-2 h-4 bg-emerald-500 animate-pulse ml-1" />
+                )}
+              </div>
+            ))}
           {isComplete && (
             <div className="flex items-start gap-2 mt-4 pt-4 border-t border-emerald-500/30">
               <span className="text-emerald-500">{">"}</span>
@@ -95,7 +150,11 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
           <div className="mt-2 h-1.5 bg-slate-900 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-300 ${
-                isComplete ? "bg-emerald-600" : "bg-gradient-to-r from-blue-600 to-emerald-600"
+                isComplete
+                  ? "bg-emerald-600"
+                  : isWaiting
+                    ? "bg-yellow-600"
+                    : "bg-gradient-to-r from-blue-600 to-emerald-600"
               }`}
               style={{ width: `${progressPercentage}%` }}
             />
