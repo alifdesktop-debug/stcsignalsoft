@@ -14,6 +14,7 @@ import { TrendingUp, History, Eye, EyeOff } from "lucide-react"
 import { TerminalAnimation } from "@/components/terminal-animation"
 import { SignalCard } from "@/components/signal-card"
 import { generateSignal, generateMultipleSignals } from "@/lib/signal-generator"
+import { getMarketsByCategory } from "@/lib/currency-pairs"
 
 export default function SignalDashboard() {
   const router = useRouter()
@@ -30,6 +31,7 @@ export default function SignalDashboard() {
   const [signalHistory, setSignalHistory] = useState<SignalEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [showSessionInfo, setShowSessionInfo] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<"currencies" | "commodities" | "stocks">("currencies")
   const cooldownIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({})
 
   useEffect(() => {
@@ -296,17 +298,59 @@ export default function SignalDashboard() {
             <div className="lg:col-span-1 space-y-6">
               <Card className="bg-slate-900/80 border-blue-900/50 backdrop-blur">
                 <CardHeader>
-                  <CardTitle className="text-white">Select Currency Pair</CardTitle>
+                  <CardTitle className="text-white">Select Market</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => {
+                        setSelectedCategory("currencies")
+                        setSelectedPair("")
+                      }}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedCategory === "currencies"
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-800 text-blue-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      Currencies
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedCategory("commodities")
+                        setSelectedPair("")
+                      }}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedCategory === "commodities"
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-800 text-blue-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      Commodities
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedCategory("stocks")
+                        setSelectedPair("")
+                      }}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedCategory === "stocks"
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-800 text-blue-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      Stocks
+                    </button>
+                  </div>
+
                   <Select value={selectedPair} onValueChange={setSelectedPair}>
                     <SelectTrigger className="bg-slate-950/50 border-blue-900/50 text-white">
-                      <SelectValue placeholder="Choose a pair" />
+                      <SelectValue placeholder="Choose a market" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-blue-900/50">
-                      {currencyPairs.map((pair) => (
-                        <SelectItem key={pair.id} value={pair.id} className="text-white">
-                          {pair.name}
+                      {getMarketsByCategory(selectedCategory).map((market) => (
+                        <SelectItem key={market.id} value={market.id} className="text-white">
+                          {market.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -315,11 +359,8 @@ export default function SignalDashboard() {
                   {selectedPairData && (
                     <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg">
                       <span className="text-blue-300 text-sm">Market Status</span>
-                      <Badge
-                        variant={marketStatus === "open" ? "default" : "secondary"}
-                        className={marketStatus === "open" ? "bg-emerald-600" : "bg-slate-700"}
-                      >
-                        {marketStatus === "open" ? "Open" : "Closed"}
+                      <Badge variant="default" className="bg-emerald-600">
+                        Open
                       </Badge>
                     </div>
                   )}
