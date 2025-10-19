@@ -30,28 +30,25 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
   const [waitProgress, setWaitProgress] = useState(0)
 
   useEffect(() => {
-    setLines([])
-    setCurrentStep(0)
-    setIsComplete(false)
-    setIsWaiting(type === "future")
-    setWaitingSeconds(20)
-    setWaitProgress(0)
+    if (type !== "future") return
 
-    if (type === "future") {
-      const waitInterval = setInterval(() => {
-        setWaitingSeconds((prev) => {
-          if (prev <= 1) {
-            clearInterval(waitInterval)
-            setIsWaiting(false)
-            return 0
-          }
-          return prev - 1
-        })
-        setWaitProgress((prev) => Math.min(prev + 5, 95))
-      }, 1000)
+    const waitInterval = setInterval(() => {
+      setWaitingSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(waitInterval)
+          setIsWaiting(false)
+          return 0
+        }
+        return prev - 1
+      })
+      setWaitProgress((prev) => Math.min(prev + 5, 95))
+    }, 1000)
 
-      return () => clearInterval(waitInterval)
-    }
+    return () => clearInterval(waitInterval)
+  }, [type])
+
+  useEffect(() => {
+    if (type === "future" && isWaiting) return
 
     const interval = setInterval(() => {
       setCurrentStep((prev) => {
@@ -70,29 +67,7 @@ export function TerminalAnimation({ type, onComplete }: TerminalAnimationProps) 
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [type, onComplete])
-
-  useEffect(() => {
-    if (!isWaiting && type === "future" && currentStep === 0) {
-      const interval = setInterval(() => {
-        setCurrentStep((prev) => {
-          const nextStep = prev + 1
-          if (nextStep <= analysisSteps.length) {
-            setLines((prevLines) => [...prevLines, analysisSteps[prev]])
-          }
-          if (nextStep === analysisSteps.length) {
-            setIsComplete(true)
-            if (onComplete) {
-              onComplete()
-            }
-          }
-          return nextStep
-        })
-      }, 1000)
-
-      return () => clearInterval(interval)
-    }
-  }, [isWaiting, type, currentStep, onComplete])
+  }, [type, isWaiting, onComplete])
 
   const progressPercentage = isWaiting ? waitProgress : Math.round((currentStep / analysisSteps.length) * 100)
 
