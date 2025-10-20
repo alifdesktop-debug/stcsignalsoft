@@ -2,44 +2,51 @@
 
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { AlertCircle } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AlertCircle, Home } from "lucide-react"
 
 export default function UnauthorizedDevicePage() {
   const router = useRouter()
 
-  const handleGoHome = () => {
+  const handleLogout = () => {
+    // Clear all stored data
     localStorage.removeItem("stc_unique_code")
+    localStorage.removeItem("stc_device_fingerprint")
+    document.cookie = "stc_unique_code=; path=/; max-age=0"
+
+    // Redirect to home
     router.push("/")
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 flex items-center justify-center p-4">
       <Card className="bg-slate-900/80 border-red-900/50 backdrop-blur max-w-md w-full">
-        <CardContent className="py-12 text-center space-y-6">
-          <div className="flex justify-center">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
             <div className="w-16 h-16 bg-red-600/20 rounded-full flex items-center justify-center">
               <AlertCircle className="w-8 h-8 text-red-500" />
             </div>
           </div>
-
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-white">Unauthorized Device</h1>
+          <CardTitle className="text-white text-2xl">Unauthorized Device</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="text-center space-y-2">
             <p className="text-red-300">
-              This signal page can only be accessed from the device where the account was activated.
+              This signal page can only be accessed from the device where it was activated.
+            </p>
+            <p className="text-slate-400 text-sm">
+              For security reasons, each account is locked to a single device to prevent unauthorized access.
             </p>
           </div>
 
-          <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-4">
-            <p className="text-sm text-red-200">
-              For security reasons, each signal page is locked to a specific device. If you need to access this account
-              from a different device, please contact the admin.
-            </p>
+          <div className="space-y-3">
+            <Button onClick={handleLogout} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+              <Home className="w-4 h-4 mr-2" />
+              Return to Login
+            </Button>
           </div>
 
-          <Button onClick={handleGoHome} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-            Return to Login
-          </Button>
+          <p className="text-xs text-slate-500 text-center">If you believe this is an error, please contact support.</p>
         </CardContent>
       </Card>
     </div>

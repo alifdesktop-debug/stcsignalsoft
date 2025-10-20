@@ -1,0 +1,41 @@
+import { type NextRequest, NextResponse } from "next/server"
+
+export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  if (pathname.startsWith("/stc-signal-software/")) {
+    const uniqueCode = pathname.split("/")[2]
+
+    // Check if user has activation stored
+    const storedUniqueCode = request.cookies.get("stc_unique_code")?.value
+
+    // If no stored code or it doesn't match the URL, redirect to home
+    if (!storedUniqueCode || storedUniqueCode !== uniqueCode) {
+      return NextResponse.redirect(new URL("/", request.url))
+    }
+
+    // Check device fingerprint
+    const storedDeviceId = request.cookies.get("stc_device_id")?.value
+    const currentDeviceId = request.headers.get("user-agent") || ""
+
+    // If device doesn't match, redirect to unauthorized device page
+    if (storedDeviceId && storedDeviceId !== currentDeviceId) {
+      return NextResponse.redirect(new URL("/unauthorized-device", request.url))
+    }
+  }
+
+  if (pathname.startsWith("/admin")) {
+    const adminKey = request.cookies.get("admin_key")?.value
+    const expectedAdminKey = process.env.ADMIN_KEY
+
+    if (!adminKey || adminKey !== expectedAdminKey) {
+      return NextResponse.redirect(new URL("/", request.url))
+    }
+  }
+
+  return NextResponse.next()
+}
+
+export const config = {
+  matcher: ["/stc-signal-software/:path*", "/admin/:path*"],
+}

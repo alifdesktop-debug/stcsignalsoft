@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { validateActivationCode, markActivationCodeAsUsed, saveUser, getUserByTelegram } from "@/lib/firebase-admin"
 import { TrendingUp, Shield, Zap } from "lucide-react"
-import { generateDeviceFingerprint, storeDeviceFingerprint } from "@/lib/device-fingerprint"
+import { storeDeviceFingerprint } from "@/lib/device-fingerprint"
 
 export default function LandingPage() {
   const router = useRouter()
@@ -63,7 +63,6 @@ export default function LandingPage() {
       }
 
       const uniqueCode = "UC-" + Math.random().toString(36).substring(2, 12).toUpperCase()
-      const deviceFingerprint = generateDeviceFingerprint()
 
       const newUser = {
         id: telegram + "-" + Date.now(),
@@ -73,7 +72,6 @@ export default function LandingPage() {
         activatedAt: new Date().toISOString(),
         isBanned: false,
         uniqueCode,
-        deviceFingerprint,
       }
 
       await saveUser(newUser)
@@ -83,7 +81,9 @@ export default function LandingPage() {
       console.log("[v0] User activated successfully:", newUser)
 
       localStorage.setItem("stc_unique_code", uniqueCode)
-      storeDeviceFingerprint(uniqueCode, deviceFingerprint)
+      storeDeviceFingerprint()
+
+      document.cookie = `stc_unique_code=${uniqueCode}; path=/; max-age=${30 * 24 * 60 * 60}`
 
       setTimeout(() => {
         router.push(`/stc-signal-software/${uniqueCode}`)
