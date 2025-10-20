@@ -27,13 +27,13 @@ export default function SignalDashboard() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [signals, setSignals] = useState<Signal[]>([])
   const [signalType, setSignalType] = useState<"live" | "future" | null>(null)
-  const [marketCooldowns, setMarketCooldowns] = useState<Record<string, number>>({})
+  const [marketCooldowns, setMarketCooldowns] = useState<Record<string, Record<"live" | "future", number>>>({})
   const [view, setView] = useState<"generate" | "history">("generate")
   const [signalHistory, setSignalHistory] = useState<SignalEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [showSessionInfo, setShowSessionInfo] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<"currencies" | "commodities" | "stocks">("currencies")
-  const cooldownIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({})
+  const cooldownIntervalsRef = useRef<Record<string, Record<"live" | "future", NodeJS.Timeout>>>({})
 
   useEffect(() => {
     if (!selectedPair) return
@@ -42,57 +42,104 @@ export default function SignalDashboard() {
       const storedCooldowns = localStorage.getItem(`cooldowns_${uniqueCode}`)
       if (storedCooldowns) {
         const cooldowns = JSON.parse(storedCooldowns)
-        const cooldownExpiry = cooldowns[selectedPair]
+        const pairCooldowns = cooldowns[selectedPair]
 
-        if (cooldownExpiry) {
+        if (pairCooldowns) {
           const now = Date.now()
-          const remainingMs = cooldownExpiry - now
-          const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000))
+          const liveCooldownExpiry = pairCooldowns.live
+          const futureCooldownExpiry = pairCooldowns.future
+
+          const liveCooldownMs = liveCooldownExpiry ? Math.max(0, liveCooldownExpiry - now) : 0
+          const futureCooldownMs = futureCooldownExpiry ? Math.max(0, futureCooldownExpiry - now) : 0
+
+          const liveRemainingSeconds = Math.max(0, Math.ceil(liveCooldownMs / 1000))
+          const futureRemainingSeconds = Math.max(0, Math.ceil(futureCooldownMs / 1000))
 
           console.log(
-            `[v0] Pair: ${selectedPair}, Cooldown expires at: ${new Date(cooldownExpiry).toLocaleTimeString()}, Remaining: ${remainingSeconds}s`,
+            `[v0] Pair: ${selectedPair}, Live cooldown: ${liveRemainingSeconds}s, Future cooldown: ${futureRemainingSeconds}s`,
           )
 
           setMarketCooldowns((prev) => ({
             ...prev,
-            [selectedPair]: remainingSeconds,
+            [selectedPair]: {
+              live: liveRemainingSeconds,
+              future: futureRemainingSeconds,
+            },
           }))
 
-          // Clear existing interval for this pair
-          if (cooldownIntervalsRef.current[selectedPair]) {
-            clearInterval(cooldownIntervalsRef.current[selectedPair])
+          if (!cooldownIntervalsRef.current[selectedPair]) {
+            cooldownIntervalsRef.current[selectedPair] = { live: undefined as any, future: undefined as any }
           }
 
-          // Start countdown if cooldown is active
-          if (remainingSeconds > 0) {
-            let countdown = remainingSeconds
+          // Live signal cooldown
+          if (liveRemainingSeconds > 0) {
+            if (cooldownIntervalsRef.current[selectedPair].live) {
+              clearInterval(cooldownIntervalsRef.current[selectedPair].live)
+            }
+
+            let countdown = liveRemainingSeconds
             const interval = setInterval(() => {
               countdown--
               setMarketCooldowns((prev) => ({
                 ...prev,
-                [selectedPair]: Math.max(0, countdown),
+                [selectedPair]: {
+                  ...prev[selectedPair],
+                  live: Math.max(0, countdown),
+                },
               }))
 
               if (countdown <= 0) {
                 clearInterval(interval)
-                delete cooldownIntervalsRef.current[selectedPair]
+                delete cooldownIntervalsRef.current[selectedPair].live
                 // Remove from localStorage when expired
                 const stored = localStorage.getItem(`cooldowns_${uniqueCode}`)
                 if (stored) {
                   const cooldowns = JSON.parse(stored)
-                  delete cooldowns[selectedPair]
-                  localStorage.setItem(`cooldowns_${uniqueCode}`, JSON.stringify(cooldowns))
+                  if (cooldowns[selectedPair]) {
+                    cooldowns[selectedPair].live = null
+                    localStorage.setItem(`cooldowns_${uniqueCode}`, JSON.stringify(cooldowns))
+                  }
                 }
               }
             }, 1000)
 
-            cooldownIntervalsRef.current[selectedPair] = interval
+            cooldownIntervalsRef.current[selectedPair].live = interval
           }
-        } else {
-          setMarketCooldowns((prev) => ({
-            ...prev,
-            [selectedPair]: 0,
-          }))
+
+          // Future signal cooldown
+          if (futureRemainingSeconds > 0) {
+            if (cooldownIntervalsRef.current[selectedPair].future) {
+              clearInterval(cooldownIntervalsRef.current[selectedPair].future)
+            }
+
+            let countdown = futureRemainingSeconds
+            const interval = setInterval(() => {
+              countdown--
+              setMarketCooldowns((prev) => ({
+                ...prev,
+                [selectedPair]: {
+                  ...prev[selectedPair],
+                  future: Math.max(0, countdown),
+                },
+              }))
+
+              if (countdown <= 0) {
+                clearInterval(interval)
+                delete cooldownIntervalsRef.current[selectedPair].future
+                // Remove from localStorage when expired
+                const stored = localStorage.getItem(`cooldowns_${uniqueCode}`)
+                if (stored) {
+                  const cooldowns = JSON.parse(stored)
+                  if (cooldowns[selectedPair]) {
+                    cooldowns[selectedPair].future = null
+                    localStorage.setItem(`cooldowns_${uniqueCode}`, JSON.stringify(cooldowns))
+                  }
+                }
+              }
+            }, 1000)
+
+            cooldownIntervalsRef.current[selectedPair].future = interval
+          }
         }
       }
     }
@@ -101,7 +148,12 @@ export default function SignalDashboard() {
 
     return () => {
       if (cooldownIntervalsRef.current[selectedPair]) {
-        clearInterval(cooldownIntervalsRef.current[selectedPair])
+        if (cooldownIntervalsRef.current[selectedPair].live) {
+          clearInterval(cooldownIntervalsRef.current[selectedPair].live)
+        }
+        if (cooldownIntervalsRef.current[selectedPair].future) {
+          clearInterval(cooldownIntervalsRef.current[selectedPair].future)
+        }
       }
     }
   }, [selectedPair, uniqueCode])
@@ -173,13 +225,18 @@ export default function SignalDashboard() {
 
   const selectedPairData = currencyPairs.find((p) => p.id === selectedPair)
   const marketStatus = selectedPairData ? getMarketStatus(selectedPairData.type) : null
-  const currentCooldown = selectedPair ? marketCooldowns[selectedPair] || 0 : 0
+  const pairCooldowns = selectedPair ? marketCooldowns[selectedPair] : { live: 0, future: 0 }
+  const liveCooldown = pairCooldowns?.live || 0
+  const futureCooldown = pairCooldowns?.future || 0
 
   const handleGenerateSignal = async (type: "live" | "future") => {
     if (!selectedPair || !user) return
 
+    const currentCooldown = type === "live" ? liveCooldown : futureCooldown
     if (currentCooldown > 0) {
-      alert(`This market is in cooldown. Please wait ${currentCooldown} seconds before generating another signal.`)
+      alert(
+        `This market is in cooldown for ${type} signals. Please wait ${currentCooldown} seconds before generating another signal.`,
+      )
       return
     }
 
@@ -222,25 +279,34 @@ export default function SignalDashboard() {
       const cooldownExpiry = Date.now() + cooldownMs
 
       console.log(
-        `[v0] Setting cooldown for ${selectedPair}: ${cooldownMinutes} minutes (${entryTimeMinutes}min entry + ${duration}min duration)`,
+        `[v0] Setting ${signalType} cooldown for ${selectedPair}: ${cooldownMinutes} minutes (${entryTimeMinutes}min entry + ${duration}min duration)`,
       )
       console.log(`[v0] Cooldown expires at: ${new Date(cooldownExpiry).toLocaleTimeString()}`)
 
-      // Save cooldown to localStorage
       const storedCooldowns = localStorage.getItem(`cooldowns_${uniqueCode}`)
       const cooldowns = storedCooldowns ? JSON.parse(storedCooldowns) : {}
-      cooldowns[selectedPair] = cooldownExpiry
+
+      if (!cooldowns[selectedPair]) {
+        cooldowns[selectedPair] = { live: null, future: null }
+      }
+
+      cooldowns[selectedPair][signalType || "live"] = cooldownExpiry
       localStorage.setItem(`cooldowns_${uniqueCode}`, JSON.stringify(cooldowns))
 
-      // Update UI immediately
       setMarketCooldowns((prev) => ({
         ...prev,
-        [selectedPair]: cooldownMinutes * 60,
+        [selectedPair]: {
+          ...prev[selectedPair],
+          [signalType || "live"]: cooldownMinutes * 60,
+        },
       }))
 
-      // Start countdown
-      if (cooldownIntervalsRef.current[selectedPair]) {
-        clearInterval(cooldownIntervalsRef.current[selectedPair])
+      if (!cooldownIntervalsRef.current[selectedPair]) {
+        cooldownIntervalsRef.current[selectedPair] = { live: undefined as any, future: undefined as any }
+      }
+
+      if (cooldownIntervalsRef.current[selectedPair][signalType || "live"]) {
+        clearInterval(cooldownIntervalsRef.current[selectedPair][signalType || "live"])
       }
 
       let countdown = cooldownMinutes * 60
@@ -248,16 +314,19 @@ export default function SignalDashboard() {
         countdown--
         setMarketCooldowns((prev) => ({
           ...prev,
-          [selectedPair]: Math.max(0, countdown),
+          [selectedPair]: {
+            ...prev[selectedPair],
+            [signalType || "live"]: Math.max(0, countdown),
+          },
         }))
 
         if (countdown <= 0) {
           clearInterval(interval)
-          delete cooldownIntervalsRef.current[selectedPair]
+          delete cooldownIntervalsRef.current[selectedPair][signalType || "live"]
         }
       }, 1000)
 
-      cooldownIntervalsRef.current[selectedPair] = interval
+      cooldownIntervalsRef.current[selectedPair][signalType || "live"] = interval
 
       setSignalHistory((prev) => {
         const updated = [historyEntry, ...prev]
@@ -377,20 +446,22 @@ export default function SignalDashboard() {
                   <div className="space-y-2">
                     <Button
                       onClick={() => handleGenerateSignal("live")}
-                      disabled={!selectedPair || isGenerating || currentCooldown > 0}
+                      disabled={!selectedPair || isGenerating || liveCooldown > 0}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      {currentCooldown > 0
-                        ? `Cooldown: ${Math.floor(currentCooldown / 60)}m ${currentCooldown % 60}s`
+                      {liveCooldown > 0
+                        ? `Cooldown: ${Math.floor(liveCooldown / 60)}m ${liveCooldown % 60}s`
                         : "Generate Live Signal"}
                     </Button>
 
                     <Button
                       onClick={() => handleGenerateSignal("future")}
-                      disabled={!selectedPair || isGenerating}
+                      disabled={!selectedPair || isGenerating || futureCooldown > 0}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
-                      Generate Future Signals (7)
+                      {futureCooldown > 0
+                        ? `Cooldown: ${Math.floor(futureCooldown / 60)}m ${futureCooldown % 60}s`
+                        : "Generate Future Signals (7)"}
                     </Button>
                   </div>
                 </CardContent>
