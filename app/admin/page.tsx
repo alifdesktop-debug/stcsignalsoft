@@ -32,6 +32,8 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<User[]>([])
   const [keyType, setKeyType] = useState<"one-time" | "unlimited">("one-time")
   const [expirationInput, setExpirationInput] = useState("")
+  const [customKeyInput, setCustomKeyInput] = useState("")
+  const [useCustomKey, setUseCustomKey] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<"keys" | "users" | "search">("users")
@@ -79,9 +81,28 @@ export default function AdminPanel() {
         }
       }
 
+      let keyValue: string
+      if (useCustomKey) {
+        if (!customKeyInput.trim()) {
+          setKeyMessage({ type: "error", text: "Please enter a custom key" })
+          setGeneratingKey(false)
+          return
+        }
+        // Check if custom key already exists
+        const keyExists = keys.some((k) => k.key.toUpperCase() === customKeyInput.trim().toUpperCase())
+        if (keyExists) {
+          setKeyMessage({ type: "error", text: "This key already exists" })
+          setGeneratingKey(false)
+          return
+        }
+        keyValue = customKeyInput.trim().toUpperCase()
+      } else {
+        keyValue = generateActivationKey()
+      }
+
       const newKey: ActivationKey = {
         id: Math.random().toString(36).substring(7),
-        key: generateActivationKey(),
+        key: keyValue,
         type: keyType,
         expiresAt,
         usedBy: [],
@@ -94,6 +115,8 @@ export default function AdminPanel() {
 
       setKeyMessage({ type: "success", text: `Key ${newKey.key} created successfully!` })
       setExpirationInput("")
+      setCustomKeyInput("")
+      setUseCustomKey(false)
       setTimeout(() => setKeyMessage(null), 3000)
     } catch (error) {
       console.error("[v0] Error creating key:", error)
@@ -314,6 +337,30 @@ export default function AdminPanel() {
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="useCustomKey"
+                      checked={useCustomKey}
+                      onChange={(e) => setUseCustomKey(e.target.checked)}
+                      className="w-4 h-4 rounded border-blue-900/50 bg-slate-950/50 cursor-pointer"
+                    />
+                    <Label htmlFor="useCustomKey" className="text-blue-200 cursor-pointer">
+                      Use Custom Key
+                    </Label>
+                  </div>
+                  {useCustomKey && (
+                    <Input
+                      type="text"
+                      placeholder="Enter custom key (e.g., PREMIUM-001)"
+                      value={customKeyInput}
+                      onChange={(e) => setCustomKeyInput(e.target.value)}
+                      className="bg-slate-950/50 border-blue-900/50 text-white placeholder:text-slate-500"
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2">
