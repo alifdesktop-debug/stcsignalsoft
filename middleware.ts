@@ -24,18 +24,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  if (pathname.startsWith("/admin")) {
-    const adminKey = request.cookies.get("admin_key")?.value
-    const expectedAdminKey = process.env.ADMIN_KEY
-
-    if (!adminKey || adminKey !== expectedAdminKey) {
-      return NextResponse.redirect(new URL("/", request.url))
-    }
-  }
-
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/stc-signal-software/:path*", "/admin/:path*"],
+  matcher: ["/stc-signal-software/:path*"],
 }
