@@ -8,6 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   saveActivationKey,
   deleteActivationKey,
   generateActivationKey,
@@ -24,7 +33,7 @@ import {
   onActivationKeysChange,
   onUsersChange,
 } from "@/lib/firebase-admin"
-import { Key, Trash2, Plus, Users, Search, Ban, RotateCcw, Clock } from "lucide-react"
+import { Key, Trash2, Plus, Users, Search, Ban, RotateCcw } from "lucide-react"
 import { parseExpirationString } from "@/lib/expiration-parser"
 
 function calculateTimeRemaining(expiresAt: string): { remaining: string; isExpired: boolean } {
@@ -68,6 +77,12 @@ export default function AdminPanel() {
   const [generatingKey, setGeneratingKey] = useState(false)
   const [keyMessage, setKeyMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [, setCountdownTrigger] = useState(0)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean
+    title: string
+    description: string
+    action: () => Promise<void>
+  } | null>(null)
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -95,6 +110,17 @@ export default function AdminPanel() {
       unsubscribeUsers()
     }
   }, [])
+
+  const showConfirmation = (title: string, description: string, action: () => Promise<void>) => {
+    setConfirmDialog({ isOpen: true, title, description, action })
+  }
+
+  const handleConfirmAction = async () => {
+    if (confirmDialog) {
+      await confirmDialog.action()
+      setConfirmDialog(null)
+    }
+  }
 
   const handleCreateKey = async () => {
     try {
@@ -180,15 +206,28 @@ export default function AdminPanel() {
   }
 
   const handleBanUser = async (userId: string) => {
-    await banUser(userId)
+    showConfirmation("Ban User", "Are you sure you want to ban this user?", async () => {
+      await banUser(userId)
+      await handleSearch()
+    })
   }
 
   const handleUnbanUser = async (userId: string) => {
-    await unbanUser(userId)
+    showConfirmation("Unban User", "Are you sure you want to unban this user?", async () => {
+      await unbanUser(userId)
+      await handleSearch()
+    })
   }
 
   const handleDeleteUser = async (userId: string) => {
-    await deleteUser(userId)
+    showConfirmation(
+      "Delete User",
+      "Are you sure you want to delete this user? This action cannot be undone.",
+      async () => {
+        await deleteUser(userId)
+        await handleSearch()
+      },
+    )
   }
 
   const handleSearch = async () => {
@@ -226,18 +265,36 @@ export default function AdminPanel() {
   }
 
   const handleBanAllByKey = async (key: string) => {
-    await banAllUsersByKey(key)
-    await handleSearch()
+    showConfirmation(
+      "Ban All Users",
+      `Are you sure you want to ban all users who activated with key "${key}"?`,
+      async () => {
+        await banAllUsersByKey(key)
+        await handleSearch()
+      },
+    )
   }
 
   const handleUnbanAllByKey = async (key: string) => {
-    await unbanAllUsersByKey(key)
-    await handleSearch()
+    showConfirmation(
+      "Unban All Users",
+      `Are you sure you want to unban all users who activated with key "${key}"?`,
+      async () => {
+        await unbanAllUsersByKey(key)
+        await handleSearch()
+      },
+    )
   }
 
   const handleDeleteAllByKey = async (key: string) => {
-    await deleteAllUsersByKey(key)
-    setSearchResults(null)
+    showConfirmation(
+      "Delete All Users",
+      `Are you sure you want to delete all users who activated with key "${key}"? This action cannot be undone.`,
+      async () => {
+        await deleteAllUsersByKey(key)
+        setSearchResults(null)
+      },
+    )
   }
 
   if (loading) {
@@ -481,45 +538,25 @@ export default function AdminPanel() {
                                     {key.key}
                                   </code>
                                   <Badge
-                                    className={`px-2 py-1 rounded text-xs ${
-                                      key.type === "one-time"
-                                        ? "bg-yellow-900/50 text-yellow-200"
-                                        : "bg-green-900/50 text-green-200"
-                                    }`}
+                                    className={`text-xs ${key.type === "one-time" ? "bg-yellow-600" : "bg-green-600"}`}
                                   >
                                     {key.type === "one-time" ? "One-Time" : "Unlimited"}
                                   </Badge>
-                                  {timeInfo?.isExpired && (
-                                    <Badge className="bg-red-900/50 text-red-200 px-2 py-1 rounded text-xs">
-                                      Expired
-                                    </Badge>
-                                  )}
                                 </div>
-                                <div className="text-sm text-blue-300 space-y-1">
-                                  {timeInfo && (
-                                    <p
-                                      className={`flex items-center gap-2 ${timeInfo.isExpired ? "text-red-400" : ""}`}
-                                    >
-                                      <Clock className="w-4 h-4" />
-                                      {timeInfo.isExpired ? "Expired" : `Expires in: ${timeInfo.remaining}`}
-                                    </p>
-                                  )}
-                                  {!timeInfo && <p>No expiration</p>}
-                                  {key.maxUsers && (
-                                    <p className="text-blue-400">
-                                      Users: {key.usedBy?.length || 0} / {key.maxUsers}
-                                    </p>
-                                  )}
-                                </div>
+                                {timeInfo && (
+                                  <div className="text-xs text-blue-400">Expires in: {timeInfo.remaining}</div>
+                                )}
                               </div>
-                              <Button
-                                size="sm"
-                                onClick={() => handleDeleteKey(key.id)}
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                                title="Delete key"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              <div className="flex flex-col gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleDeleteKey(key.id)}
+                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                  title="Delete Key"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         )
@@ -553,22 +590,72 @@ export default function AdminPanel() {
                 <CardContent className="py-4">
                   {searchResults.type === "key" && (
                     <div>
-                      <h3 className="text-white font-semibold mb-2">Found activation key: {searchResults.query}</h3>
+                      <h3 className="text-white font-semibold mb-4">Found activation key: {searchResults.query}</h3>
+
+                      <div className="flex gap-2 mb-4 p-3 bg-slate-950/50 rounded border border-blue-900/50">
+                        <Button
+                          size="sm"
+                          onClick={() => handleBanAllByKey(searchResults.query)}
+                          className="bg-yellow-600 hover:bg-yellow-700 text-white flex-1"
+                        >
+                          <Ban className="w-4 h-4 mr-2" />
+                          Ban All Users
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleUnbanAllByKey(searchResults.query)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          Unban All Users
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleDeleteAllByKey(searchResults.query)}
+                          className="bg-red-600 hover:bg-red-700 text-white flex-1"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete All Users
+                        </Button>
+                      </div>
+
                       <div className="space-y-2">
                         {searchResults.users.map((user: User) => (
                           <div key={user.id} className="flex items-center justify-between p-3 bg-slate-950/50 rounded">
                             <div>
                               <h4 className="text-white font-medium">{user.name}</h4>
                               <p className="text-blue-300 text-sm">Telegram: @{user.telegram}</p>
+                              {user.isBanned && <Badge className="bg-red-600 text-white mt-1">Banned</Badge>}
                             </div>
-                            <Button
-                              size="sm"
-                              onClick={() => handleBanUser(user.id)}
-                              className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                              title="Ban user"
-                            >
-                              <Ban className="w-4 h-4" />
-                            </Button>
+                            <div className="flex gap-2">
+                              {user.isBanned ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleUnbanUser(user.id)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  title="Unban"
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleBanUser(user.id)}
+                                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                                  title="Ban"
+                                >
+                                  <Ban className="w-4 h-4" />
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -584,15 +671,39 @@ export default function AdminPanel() {
                             <h4 className="text-white font-medium">{searchResults.user.name}</h4>
                             <p className="text-blue-300 text-sm">Telegram: @{searchResults.user.telegram}</p>
                             <p className="text-blue-300 text-sm">Key: {searchResults.user.activationKey}</p>
+                            {searchResults.user.isBanned && (
+                              <Badge className="bg-red-600 text-white mt-1">Banned</Badge>
+                            )}
                           </div>
-                          <Button
-                            size="sm"
-                            onClick={() => handleBanUser(searchResults.user.id)}
-                            className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                            title="Ban user"
-                          >
-                            <Ban className="w-4 h-4" />
-                          </Button>
+                          <div className="flex gap-2">
+                            {searchResults.user.isBanned ? (
+                              <Button
+                                size="sm"
+                                onClick={() => handleUnbanUser(searchResults.user.id)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                title="Unban"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => handleBanUser(searchResults.user.id)}
+                                className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                                title="Ban"
+                              >
+                                <Ban className="w-4 h-4" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              onClick={() => handleDeleteUser(searchResults.user.id)}
+                              className="bg-red-600 hover:bg-red-700 text-white"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -608,6 +719,23 @@ export default function AdminPanel() {
             )}
           </div>
         )}
+
+        <AlertDialog open={confirmDialog?.isOpen || false} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+          <AlertDialogContent className="bg-slate-900 border-blue-900/50">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-white">{confirmDialog?.title}</AlertDialogTitle>
+              <AlertDialogDescription className="text-blue-300">{confirmDialog?.description}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex gap-2 justify-end">
+              <AlertDialogCancel className="bg-slate-800 text-white hover:bg-slate-700 border-blue-900/50">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmAction} className="bg-red-600 hover:bg-red-700 text-white">
+                Confirm
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )
