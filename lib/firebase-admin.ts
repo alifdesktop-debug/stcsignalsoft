@@ -7,6 +7,7 @@ export interface ActivationKey {
   expiresAt: string | null
   usedBy: string[]
   createdAt: string
+  maxUsers: number | null
 }
 
 export interface User {
@@ -122,6 +123,12 @@ export async function validateActivationCode(code: string): Promise<ActivationKe
     // Check if key is one-time and already used
     if (key.type === "one-time" && key.usedBy && key.usedBy.length > 0) {
       console.log("[v0] One-time activation code already used:", code)
+      return null
+    }
+
+    // Check if max users limit has been reached
+    if (key.maxUsers && key.usedBy && key.usedBy.length >= key.maxUsers) {
+      console.log("[v0] Activation code max users limit reached:", code)
       return null
     }
 
