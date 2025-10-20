@@ -15,6 +15,7 @@ import { TerminalAnimation } from "@/components/terminal-animation"
 import { SignalCard } from "@/components/signal-card"
 import { generateSignal, generateMultipleSignals } from "@/lib/signal-generator"
 import { getMarketsByCategory } from "@/lib/currency-pairs"
+import { generateDeviceFingerprint, getStoredDeviceFingerprint, clearDeviceFingerprint } from "@/lib/device-fingerprint"
 
 export default function SignalDashboard() {
   const router = useRouter()
@@ -115,6 +116,7 @@ export default function SignalDashboard() {
           localStorage.removeItem(`stc_unique_code`)
           localStorage.removeItem(`cooldowns_${uniqueCode}`)
           localStorage.removeItem(`history_${uniqueCode}`)
+          clearDeviceFingerprint(uniqueCode)
 
           // Redirect to login page
           router.push("/")
@@ -123,6 +125,20 @@ export default function SignalDashboard() {
 
         if (foundUser.isBanned) {
           router.push("/yourban")
+          return
+        }
+
+        const currentDeviceFingerprint = generateDeviceFingerprint()
+        const storedDeviceFingerprint = getStoredDeviceFingerprint(uniqueCode)
+
+        console.log("[v0] Current device fingerprint:", currentDeviceFingerprint)
+        console.log("[v0] Stored device fingerprint:", storedDeviceFingerprint)
+        console.log("[v0] User device fingerprint:", foundUser.deviceFingerprint)
+
+        // If device fingerprint doesn't match, redirect to unauthorized page
+        if (foundUser.deviceFingerprint && currentDeviceFingerprint !== foundUser.deviceFingerprint) {
+          console.log("[v0] Device fingerprint mismatch - unauthorized access attempt")
+          router.push("/unauthorized-device")
           return
         }
 
@@ -147,6 +163,7 @@ export default function SignalDashboard() {
         localStorage.removeItem(`stc_unique_code`)
         localStorage.removeItem(`cooldowns_${uniqueCode}`)
         localStorage.removeItem(`history_${uniqueCode}`)
+        clearDeviceFingerprint(uniqueCode)
         router.push("/")
       }
     }

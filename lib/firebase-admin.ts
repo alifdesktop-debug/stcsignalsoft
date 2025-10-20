@@ -17,6 +17,7 @@ export interface User {
   activatedAt: string
   isBanned: boolean
   uniqueCode: string
+  deviceFingerprint?: string
 }
 
 export interface SignalEntry {
