@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { validateActivationCode, markActivationCodeAsUsed, saveUser, getUserByTelegram } from "@/lib/firebase-admin"
-import { TrendingUp, Shield, Zap } from "lucide-react"
+import { TrendingUp, Shield, Zap, Send, Users } from "lucide-react"
 import { storeDeviceFingerprint } from "@/lib/device-fingerprint"
 
 export default function LandingPage() {
@@ -180,6 +180,39 @@ export default function LandingPage() {
             </form>
           </CardContent>
         </Card>
+
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold text-white mb-6 text-center">How To Get Activation Code</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <a
+              href="https://t.me/SojibTraderr"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-slate-900/80 border border-blue-900/50 backdrop-blur rounded-lg p-6 hover:bg-slate-900 hover:border-blue-700/50 transition-all flex items-center gap-4 group"
+            >
+              <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center group-hover:bg-blue-600/30 transition-colors">
+                <Send className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-white font-semibold">Contract Our Admin To Get Activation Code</p>
+              </div>
+            </a>
+
+            <a
+              href="https://t.me/SojibTrader"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-slate-900/80 border border-blue-900/50 backdrop-blur rounded-lg p-6 hover:bg-slate-900 hover:border-blue-700/50 transition-all flex items-center gap-4 group"
+            >
+              <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center group-hover:bg-blue-600/30 transition-colors">
+                <Users className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-white font-semibold">Join Telegram Community</p>
+              </div>
+            </a>
+          </div>
+        </div>
 
         <div>
           <h2 className="text-2xl font-bold text-white mb-8 text-center">What You'll Get</h2>
