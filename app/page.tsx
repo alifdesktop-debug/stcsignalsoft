@@ -226,7 +226,7 @@ export default function LandingPage() {
                   <div>
                     <CardTitle className="text-white">Live Signals</CardTitle>
                     <CardDescription className="text-blue-300">
-                      Real-time trading signals with 60s cooldown
+                      Real-time trading signals with proper analysis
                     </CardDescription>
                   </div>
                 </div>
@@ -255,7 +255,7 @@ export default function LandingPage() {
                   </div>
                   <div>
                     <CardTitle className="text-white">Market Analysis</CardTitle>
-                    <CardDescription className="text-blue-300">Real & OTC market support</CardDescription>
+                    <CardDescription className="text-blue-300">OTC market support</CardDescription>
                   </div>
                 </div>
               </CardHeader>
