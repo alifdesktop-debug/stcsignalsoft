@@ -25,12 +25,13 @@ import {
   onUsersChange,
 } from "@/lib/firebase-admin"
 import { Key, Trash2, Plus, Users, Search, Ban, RotateCcw } from "lucide-react"
+import { parseExpirationString } from "@/lib/expiration-parser"
 
 export default function AdminPanel() {
   const [keys, setKeys] = useState<ActivationKey[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [keyType, setKeyType] = useState<"one-time" | "unlimited">("one-time")
-  const [expirationHours, setExpirationHours] = useState("")
+  const [expirationInput, setExpirationInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<"keys" | "users" | "search">("users")
@@ -63,13 +64,26 @@ export default function AdminPanel() {
       setKeyMessage(null)
       console.log("[v0] Starting key generation...")
 
+      let expiresAt: string | null = null
+      if (expirationInput.trim()) {
+        try {
+          const expirationDate = parseExpirationString(expirationInput)
+          expiresAt = expirationDate.toISOString()
+        } catch (error) {
+          setKeyMessage({
+            type: "error",
+            text: `Invalid expiration format: ${error instanceof Error ? error.message : "Unknown error"}`,
+          })
+          setGeneratingKey(false)
+          return
+        }
+      }
+
       const newKey: ActivationKey = {
         id: Math.random().toString(36).substring(7),
         key: generateActivationKey(),
         type: keyType,
-        expiresAt: expirationHours
-          ? new Date(Date.now() + Number.parseInt(expirationHours) * 60 * 60 * 1000).toISOString()
-          : null,
+        expiresAt,
         usedBy: [],
         createdAt: new Date().toISOString(),
       }
@@ -79,7 +93,7 @@ export default function AdminPanel() {
       console.log("[v0] Key saved successfully")
 
       setKeyMessage({ type: "success", text: `Key ${newKey.key} created successfully!` })
-      setExpirationHours("")
+      setExpirationInput("")
       setTimeout(() => setKeyMessage(null), 3000)
     } catch (error) {
       console.error("[v0] Error creating key:", error)
@@ -303,14 +317,17 @@ export default function AdminPanel() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-blue-200">Expiration (hours)</Label>
+                  <Label className="text-blue-200">Expiration Format</Label>
                   <Input
-                    type="number"
-                    placeholder="Leave empty for no expiration"
-                    value={expirationHours}
-                    onChange={(e) => setExpirationHours(e.target.value)}
+                    type="text"
+                    placeholder="e.g., 1h, 30m, 1d, 1mo, 1y, or 1h 30m"
+                    value={expirationInput}
+                    onChange={(e) => setExpirationInput(e.target.value)}
                     className="bg-slate-950/50 border-blue-900/50 text-white placeholder:text-slate-500"
                   />
+                  <p className="text-xs text-blue-400">
+                    Formats: s (second), m (minute), h (hour), d (day), mo (month), y (year)
+                  </p>
                 </div>
 
                 <Button
@@ -377,6 +394,164 @@ export default function AdminPanel() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        )}
+
+        {/* Search Tab */}
+        {activeTab === "search" && (
+          <div className="space-y-4">
+            <Card className="bg-slate-900/80 border-blue-900/50 backdrop-blur">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Search className="w-5 h-5" />
+                  Search Users
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Search by activation key or telegram username"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                    className="bg-slate-950/50 border-blue-900/50 text-white placeholder:text-slate-500"
+                  />
+                  <Button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    Search
+                  </Button>
+                </div>
+
+                {searchResults && (
+                  <div className="mt-6 space-y-4">
+                    {searchResults.type === "not-found" && (
+                      <div className="text-center py-8 text-blue-300">No results found for "{searchResults.query}"</div>
+                    )}
+
+                    {searchResults.type === "key" && (
+                      <div className="space-y-4">
+                        <div className="text-blue-300 font-semibold">
+                          Found {searchResults.users.length} user(s) with key "{searchResults.query}"
+                        </div>
+                        {searchResults.users.map((user: User) => (
+                          <Card key={user.id} className="bg-slate-950/50 border-blue-900/50">
+                            <CardContent className="py-4">
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <h3 className="text-white font-semibold">{user.name}</h3>
+                                    {user.isBanned && <Badge className="bg-red-600 text-white">Banned</Badge>}
+                                  </div>
+                                  <div className="text-sm text-blue-300 space-y-1">
+                                    <p>Telegram: @{user.telegram}</p>
+                                    <p>Activated: {new Date(user.activatedAt).toLocaleDateString()}</p>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  {user.isBanned ? (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleUnbanUser(user.id)}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    >
+                                      <RotateCcw className="w-4 h-4" />
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleBanUser(user.id)}
+                                      className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                                    >
+                                      <Ban className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="bg-red-600 hover:bg-red-700 text-white"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                        <div className="flex gap-2 pt-4">
+                          <Button
+                            onClick={() => handleBanAllByKey(searchResults.query)}
+                            className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white"
+                          >
+                            <Ban className="w-4 h-4 mr-2" />
+                            Ban All
+                          </Button>
+                          <Button
+                            onClick={() => handleUnbanAllByKey(searchResults.query)}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Unban All
+                          </Button>
+                          <Button
+                            onClick={() => handleDeleteAllByKey(searchResults.query)}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete All
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {searchResults.type === "telegram" && (
+                      <Card className="bg-slate-950/50 border-blue-900/50">
+                        <CardContent className="py-4">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="text-white font-semibold">{searchResults.user.name}</h3>
+                                {searchResults.user.isBanned && <Badge className="bg-red-600 text-white">Banned</Badge>}
+                              </div>
+                              <div className="text-sm text-blue-300 space-y-1">
+                                <p>Telegram: @{searchResults.user.telegram}</p>
+                                <p>Key: {searchResults.user.activationKey}</p>
+                                <p>Activated: {new Date(searchResults.user.activatedAt).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              {searchResults.user.isBanned ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleUnbanUser(searchResults.user.id)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleBanUser(searchResults.user.id)}
+                                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                                >
+                                  <Ban className="w-4 h-4" />
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                onClick={() => handleDeleteUser(searchResults.user.id)}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
