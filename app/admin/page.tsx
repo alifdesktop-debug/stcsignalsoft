@@ -24,8 +24,34 @@ import {
   onActivationKeysChange,
   onUsersChange,
 } from "@/lib/firebase-admin"
-import { Key, Trash2, Plus, Users, Search, Ban, RotateCcw } from "lucide-react"
+import { Key, Trash2, Plus, Users, Search, Ban, RotateCcw, Clock } from "lucide-react"
 import { parseExpirationString } from "@/lib/expiration-parser"
+
+function calculateTimeRemaining(expiresAt: string): { remaining: string; isExpired: boolean } {
+  const now = new Date()
+  const expirationDate = new Date(expiresAt)
+  const diffMs = expirationDate.getTime() - now.getTime()
+
+  if (diffMs <= 0) {
+    return { remaining: "Expired", isExpired: true }
+  }
+
+  const diffSecs = Math.floor(diffMs / 1000)
+  const days = Math.floor(diffSecs / 86400)
+  const hours = Math.floor((diffSecs % 86400) / 3600)
+  const minutes = Math.floor((diffSecs % 3600) / 60)
+  const seconds = diffSecs % 60
+
+  if (days > 0) {
+    return { remaining: `${days}d ${hours}h`, isExpired: false }
+  } else if (hours > 0) {
+    return { remaining: `${hours}h ${minutes}m`, isExpired: false }
+  } else if (minutes > 0) {
+    return { remaining: `${minutes}m ${seconds}s`, isExpired: false }
+  } else {
+    return { remaining: `${seconds}s`, isExpired: false }
+  }
+}
 
 export default function AdminPanel() {
   const [keys, setKeys] = useState<ActivationKey[]>([])
@@ -41,6 +67,15 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true)
   const [generatingKey, setGeneratingKey] = useState(false)
   const [keyMessage, setKeyMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [, setCountdownTrigger] = useState(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdownTrigger((prev) => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -430,48 +465,65 @@ export default function AdminPanel() {
                     <div className="text-center py-8 text-blue-300">No activation keys created yet</div>
                   ) : (
                     <div className="space-y-3">
-                      {keys.map((key) => (
-                        <div key={key.id} className="bg-slate-950/50 border border-blue-900/50 rounded-lg p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <code className="text-white font-mono bg-blue-950/50 px-3 py-1 rounded text-sm">
-                                  {key.key}
-                                </code>
-                                <Badge
-                                  className={`px-2 py-1 rounded text-xs ${
-                                    key.type === "one-time"
-                                      ? "bg-yellow-900/50 text-yellow-200"
-                                      : "bg-green-900/50 text-green-200"
-                                  }`}
-                                >
-                                  {key.type === "one-time" ? "One-Time" : "Unlimited"}
-                                </Badge>
+                      {keys.map((key) => {
+                        const timeInfo = key.expiresAt ? calculateTimeRemaining(key.expiresAt) : null
+                        return (
+                          <div
+                            key={key.id}
+                            className={`bg-slate-950/50 border rounded-lg p-4 ${
+                              timeInfo?.isExpired ? "border-red-900/50" : "border-blue-900/50"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <code className="text-white font-mono bg-blue-950/50 px-3 py-1 rounded text-sm">
+                                    {key.key}
+                                  </code>
+                                  <Badge
+                                    className={`px-2 py-1 rounded text-xs ${
+                                      key.type === "one-time"
+                                        ? "bg-yellow-900/50 text-yellow-200"
+                                        : "bg-green-900/50 text-green-200"
+                                    }`}
+                                  >
+                                    {key.type === "one-time" ? "One-Time" : "Unlimited"}
+                                  </Badge>
+                                  {timeInfo?.isExpired && (
+                                    <Badge className="bg-red-900/50 text-red-200 px-2 py-1 rounded text-xs">
+                                      Expired
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-sm text-blue-300 space-y-1">
+                                  {timeInfo && (
+                                    <p
+                                      className={`flex items-center gap-2 ${timeInfo.isExpired ? "text-red-400" : ""}`}
+                                    >
+                                      <Clock className="w-4 h-4" />
+                                      {timeInfo.isExpired ? "Expired" : `Expires in: ${timeInfo.remaining}`}
+                                    </p>
+                                  )}
+                                  {!timeInfo && <p>No expiration</p>}
+                                  {key.maxUsers && (
+                                    <p className="text-blue-400">
+                                      Users: {key.usedBy?.length || 0} / {key.maxUsers}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-sm text-blue-300 space-y-1">
-                                <p>
-                                  {key.expiresAt
-                                    ? `Expires: ${new Date(key.expiresAt).toLocaleDateString()}`
-                                    : "No expiration"}
-                                </p>
-                                {key.maxUsers && (
-                                  <p className="text-blue-400">
-                                    Users: {key.usedBy?.length || 0} / {key.maxUsers}
-                                  </p>
-                                )}
-                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => handleDeleteKey(key.id)}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                                title="Delete key"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
-                            <Button
-                              size="sm"
-                              onClick={() => handleDeleteKey(key.id)}
-                              className="bg-red-600 hover:bg-red-700 text-white"
-                              title="Delete key"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </CardContent>
