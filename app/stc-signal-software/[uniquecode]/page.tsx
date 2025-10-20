@@ -269,18 +269,41 @@ export default function SignalDashboard() {
 
     try {
       const firstSignal = generatedSignals[0]
+      const lastSignal = generatedSignals[generatedSignals.length - 1]
 
-      const entryTimeDate = new Date(firstSignal.entryTime)
-      const now = new Date()
-      const entryTimeMinutes = Math.ceil((entryTimeDate.getTime() - now.getTime()) / (60 * 1000))
-      const duration = firstSignal.duration || 30
-      const cooldownMinutes = entryTimeMinutes + duration
-      const cooldownMs = cooldownMinutes * 60 * 1000
+      let cooldownMs: number
+
+      if (signalType === "future") {
+        const firstEntryTime = new Date(firstSignal.entryTime).getTime()
+        const lastEntryTime = new Date(lastSignal.entryTime).getTime()
+        const timeSpanMs = lastEntryTime - firstEntryTime
+        const lastSignalDuration = lastSignal.duration || 30
+        const totalCooldownMs = timeSpanMs + lastSignalDuration * 60 * 1000
+        cooldownMs = totalCooldownMs
+
+        const cooldownMinutes = Math.ceil(cooldownMs / (60 * 1000))
+        const timeSpanMinutes = Math.ceil(timeSpanMs / (60 * 1000))
+
+        console.log(
+          `[v0] Setting future signal cooldown: ${cooldownMinutes} minutes (${timeSpanMinutes}min span + ${lastSignalDuration}min duration)`,
+        )
+        console.log(`[v0] First entry: ${new Date(firstEntryTime).toLocaleTimeString()}`)
+        console.log(`[v0] Last entry: ${new Date(lastEntryTime).toLocaleTimeString()}`)
+      } else {
+        const entryTimeDate = new Date(firstSignal.entryTime)
+        const now = new Date()
+        const entryTimeMinutes = Math.ceil((entryTimeDate.getTime() - now.getTime()) / (60 * 1000))
+        const duration = firstSignal.duration || 30
+        const cooldownMinutes = entryTimeMinutes + duration
+        cooldownMs = cooldownMinutes * 60 * 1000
+
+        console.log(
+          `[v0] Setting live signal cooldown for ${selectedPair}: ${cooldownMinutes} minutes (${entryTimeMinutes}min entry + ${duration}min duration)`,
+        )
+      }
+
       const cooldownExpiry = Date.now() + cooldownMs
 
-      console.log(
-        `[v0] Setting ${signalType} cooldown for ${selectedPair}: ${cooldownMinutes} minutes (${entryTimeMinutes}min entry + ${duration}min duration)`,
-      )
       console.log(`[v0] Cooldown expires at: ${new Date(cooldownExpiry).toLocaleTimeString()}`)
 
       const storedCooldowns = localStorage.getItem(`cooldowns_${uniqueCode}`)
@@ -297,7 +320,7 @@ export default function SignalDashboard() {
         ...prev,
         [selectedPair]: {
           ...prev[selectedPair],
-          [signalType || "live"]: cooldownMinutes * 60,
+          [signalType || "live"]: Math.ceil(cooldownMs / 1000),
         },
       }))
 
@@ -309,7 +332,7 @@ export default function SignalDashboard() {
         clearInterval(cooldownIntervalsRef.current[selectedPair][signalType || "live"])
       }
 
-      let countdown = cooldownMinutes * 60
+      let countdown = Math.ceil(cooldownMs / 1000)
       const interval = setInterval(() => {
         countdown--
         setMarketCooldowns((prev) => ({
